@@ -46,11 +46,48 @@ class Base(object):
         self.base_target = kwargs.get("target", "*")
 
 
+class Filter(object):
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.matcher = kwargs.get('matcher', None)
+        self.value = kwargs.get('value', None)
+        self._assign_matchers()
+        log.debug("Initializing filter for {} with value {}".format(
+            self.name, self.value))
+
+    @property
+    def is_matchable(self):
+        return self.matcher is not None
+
+    def _assign_matchers(self):
+        """ Assign a matcher based on filter_name
+
+        This method assigns an individual Matcher based
+        on `filter_name` and returns it.
+
+        :param str filter_name: The filter (size, model, vendor..)
+        :param str filter_value: The filter_value (0,1, 'Samsung', '10G')
+        :return: Any of the assigned matcher
+        :rtype: *Matcher
+        """
+        if self.name == "size":
+            self.matcher = SizeMatcher(self.name, self.value)
+        elif self.name == "model":
+            self.matcher = SubstringMatcher(self.name, self.value)
+        elif self.name == "vendor":
+            self.matcher = SubstringMatcher(self.name, self.value)
+        elif self.name == "rotational":
+            self.matcher = EqualityMatcher(self.name, self.value)
+
+    def __repr__(self):
+        return 'Filter<{}>'.format(self.name)
+
+
 # pylint: disable=too-few-public-methods
 class Inventory(Base):
     """ The Inventory class
 
-    Just a container for the inventory call
+    A container for the inventory call
     This may be extended in the future, depending on our needs.
     """
 
@@ -84,15 +121,15 @@ class Matcher(Base):
     Inherits from Base
     """
 
-    def __init__(self, attr: str, key: str) -> None:
+    def __init__(self, key: str, value: str) -> None:
         """ Initialization of Base class
 
-        :param str attr: Attribute like 'model, size or vendor'
-        :param str key: Value of attribute like 'X123, 5G or samsung'
+        :param str key: Attribute like 'model, size or vendor'
+        :param str value: Value of attribute like 'X123, 5G or samsung'
         """
         Base.__init__(self)
-        self.attr: str = attr
         self.key: str = key
+        self.value: str = value
         self.fallback_key: str = ''
         self.virtual: bool = self._virtual()
 
@@ -131,11 +168,11 @@ class Matcher(Base):
         :return: A disk value
         :rtype: str
         """
-        disk_key: str = disk.get(self.key)
-        if not disk_key and self.fallback_key:
-            disk_key = disk.get(self.fallback_key)
-        if disk_key:
-            return disk_key
+        disk_value: str = disk.get(self.key)
+        if not disk_value and self.fallback_key:
+            disk_value = disk.get(self.fallback_key)
+        if disk_value:
+            return disk_value
         if self.virtual:
             log.info(
                 "Virtual-env detected. Not raising Exception on missing keys."
@@ -143,7 +180,7 @@ class Matcher(Base):
                     self.key, self.fallback_key))
             return False
         else:
-            raise Exception("No disk_key found for {} or {}".format(
+            raise Exception("No value found for {} or {}".format(
                 self.key, self.fallback_key))
 
     def compare(self, disk: dict):
@@ -161,11 +198,11 @@ class SubstringMatcher(Matcher):
     """ Substring matcher subclass
     """
 
-    def __init__(self, attr: str, key: str, fallback_key=None) -> None:
-        Matcher.__init__(self, attr, key)
+    def __init__(self, key: str, value: str, fallback_key=None) -> None:
+        Matcher.__init__(self, key, value)
         self.fallback_key = fallback_key
 
-    def compare(self, disk: dict):
+    def compare(self, disk: dict) -> bool:
         """ Overwritten method to match substrings
 
         This matcher does substring matching
@@ -173,8 +210,8 @@ class SubstringMatcher(Matcher):
         :return: True/False if the match succeeded
         :rtype: bool
         """
-        disk_key: str = self._get_disk_key(disk)
-        if str(self.attr) in str(disk_key):
+        disk_value: str = self._get_disk_key(disk)
+        if str(self.value) in str(disk_value):
             return True
         return False
 
@@ -183,8 +220,8 @@ class EqualityMatcher(Matcher):
     """ Equality matcher subclass
     """
 
-    def __init__(self, attr: str, key: str) -> None:
-        Matcher.__init__(self, attr, key)
+    def __init__(self, key: str, value: str) -> None:
+        Matcher.__init__(self, key, value)
 
     def compare(self, disk: dict) -> bool:
         """ Overwritten method to match equality
@@ -194,8 +231,8 @@ class EqualityMatcher(Matcher):
         :return: True/False if the match succeeded
         :rtype: bool
         """
-        disk_key: str = self._get_disk_key(disk)
-        if int(disk_key) == int(self.attr):
+        disk_value: str = self._get_disk_key(disk)
+        if int(disk_value) == int(self.value):
             return True
         return False
 
@@ -205,9 +242,9 @@ class SizeMatcher(Matcher):
     """
 
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, attr: str, key: str) -> None:
+    def __init__(self, key: str, value: str) -> None:
         # TODO: key will be ignored
-        Matcher.__init__(self, attr, key)
+        Matcher.__init__(self, key, value)
         self.key: str = "human_readable_size"
         self.fallback_key: str = "size"
         self._high = None
@@ -325,26 +362,26 @@ class SizeMatcher(Matcher):
         This method uses regex to identify and extract this information
         and raises if none could be found.
         """
-        low_high = re.match(r"\d+[A-Z]{1,2}:\d+[A-Z]{1,2}", self.attr)
+        low_high = re.match(r"\d+[A-Z]{1,2}:\d+[A-Z]{1,2}", self.value)
         if low_high:
             low, high = low_high.group().split(":")
             self.low = self._get_k_v(low)
             self.high = self._get_k_v(high)
 
-        low = re.match(r"\d+[A-Z]{1,2}:$", self.attr)
+        low = re.match(r"\d+[A-Z]{1,2}:$", self.value)
         if low:
             self.low = self._get_k_v(low.group())
 
-        high = re.match(r"^:\d+[A-Z]{1,2}", self.attr)
+        high = re.match(r"^:\d+[A-Z]{1,2}", self.value)
         if high:
             self.high = self._get_k_v(high.group())
 
-        exact = re.match(r"^\d+[A-Z]{1,2}$", self.attr)
+        exact = re.match(r"^\d+[A-Z]{1,2}$", self.value)
         if exact:
             self.exact = self._get_k_v(exact.group())
 
         if not self.low and not self.high and not self.exact:
-            raise Exception("Couldn't parse {}".format(self.attr))
+            raise Exception("Couldn't parse {}".format(self.value))
 
     @staticmethod
     # pylint: disable=inconsistent-return-statements
@@ -376,13 +413,13 @@ class SizeMatcher(Matcher):
 
 
         """
-        disk_key = self._get_disk_key(disk)
+        disk_value = self._get_disk_key(disk)
         # This doesn't neccessarily have to be a float.
         # The current output from ceph-volume gives a float..
         # This may change in the future..
         # TODO: harden this paragraph
-        disk_size = float(re.findall(r"\d+\.\d+", disk_key)[0])
-        disk_suffix = self._parse_suffix(disk_key)
+        disk_size = float(re.findall(r"\d+\.\d+", disk_value)[0])
+        disk_suffix = self._parse_suffix(disk_value)
         disk_size_in_byte = self.to_byte((disk_size, disk_suffix))
 
         if all(self.high) and all(self.low):
@@ -481,6 +518,13 @@ class DriveGroup(Base):
         return self.raw.get("wal_devices", dict())
 
     @property
+    def limit(self) -> int:
+        """
+        TODO docstring
+        """
+        return self.data_device_attrs.get("limit", 0)
+
+    @property
     def inventory(self) -> dict:
         """
         TODO
@@ -488,27 +532,46 @@ class DriveGroup(Base):
         return Inventory(self.target).disks
 
     @property
-    def data_devices(self) -> set:
+    def data_devices(self) -> list:
         """ Filter for (bluestore) DATA devices
         """
         log.warning("Scanning for data devices on host {}".format(self.target))
         return self._filter_devices(self.data_device_attrs)
 
     @property
-    def wal_devices(self) -> set:
+    def wal_devices(self) -> list:
         """ Filter for bluestore WAL devices
         """
         log.warning("Scanning for WAL devices on host {}".format(self.target))
         return self._filter_devices(self.wal_device_attrs)
 
     @property
-    def db_devices(self) -> set:
+    def db_devices(self) -> list:
         """ Filter for bluestore DB devices
         """
         log.warning("Scanning for db devices on host {}".format(self.target))
         return self._filter_devices(self.db_device_attrs)
 
-    def _filter_devices(self, device_filter: dict) -> Set:
+    def _limit_reached(self, len_devices: int, disk_path: str) -> bool:
+        """ Check for the <limit> property and apply logic
+
+        If a limit is set in 'device_attrs' we have to stop adding
+        disks at some point.
+
+        If limit is set (>0) and len(devices) >= limit
+
+        :param int len_devices: Length of the already populated device set/list
+        :param str disk_path: The disk identifier (for logging purposes)
+        :return: True/False if the device should be added to the list of devices
+        :rtype: bool
+        """
+        if self.limit > 0 and len_devices >= self.limit:
+            log.info("Refuse to add {} due to limit policy <{}>".format(
+                disk_path, self.limit))
+            return True
+        return False
+
+    def _filter_devices(self, device_filter: dict) -> list:
         """ Filters devices with applied filters
 
         Iterates over all applied filter (there can be multiple):
@@ -530,26 +593,42 @@ class DriveGroup(Base):
         """
         devices: Set = set()
         for name, val in device_filter.items():
-            matcher = self._assign_matchers(name, val)
-            log.debug("Scanning with filter {}:{}".format(name, val))
+            filter = Filter(name=name, value=val)
             for disk in self.inventory:
-                if not self._match(self._reduce_inventory(disk), matcher):
+                # continue criterias
+                if not filter.is_matchable:
                     continue
-                if disk.get("path", None):
-                    log.debug("Found matching disk: {}".format(
-                        disk.get("path")))
-                    devices.add(disk.get("path"))
-                else:
-                    raise Exception("Disk {} doesn't have a 'path' identifier".
-                                    format(disk))
 
-        return devices
+                if not filter.matcher.compare(
+                        self._reduce_inventory(disk)):
+                    continue
+
+                if not self._has_mandatory_idents(disk):
+                    continue
+
+                if self._limit_reached(len(devices), disk.get('path')):
+                    continue
+
+                devices.add(disk.get("path"))
+
+        # sorted() returns a sorted list by the cost of losing the <set>
+        return sorted(devices)
+
+    def _has_mandatory_idents(self, disk: dict) -> bool:
+        if disk.get("path", None):
+            log.debug("Found matching disk: {}".format(
+                disk.get("path")))
+            return True
+        else:
+            raise Exception(
+                "Disk {} doesn't have a 'path' identifier".format(
+                    disk))
 
     @property
     def _supported_filters(self) -> list:
         """ List of supported filters
         """
-        return ["size", "vendor", "model", "rotational"]
+        return ["size", "vendor", "model", "rotational", "limit"]
 
     def _check_filter_support(self) -> None:
         """ Iterates over attrs to check support
@@ -571,45 +650,7 @@ class DriveGroup(Base):
         for applied_filter in list(attr.keys()):
             if applied_filter not in self._supported_filters:
                 raise FilterNotSupported(
-                    "Filter {} is not supported".format(applied_filter))
-
-    @staticmethod
-    def _assign_matchers(filter_name: str, filter_value: str):
-        """ Assign a matcher based on filter_name
-
-        This method assigns an individual Matcher based
-        on `filter_name` and returns it.
-
-        :param str filter_name: The filter (size, model, vendor..)
-        :param str filter_value: The filter_value (0,1, 'Samsung', '10G')
-        :return: Any of the assigned matcher
-        :rtype: *Matcher
-        """
-        if filter_name == "size":
-            return SizeMatcher(filter_value, filter_name)
-        elif filter_name == "model":
-            return SubstringMatcher(filter_value, filter_name)
-        elif filter_name == "vendor":
-            return SubstringMatcher(filter_value, filter_name)
-        elif filter_name == "rotational":
-            return EqualityMatcher(filter_value, filter_name)
-        else:
-            raise NoMatcherFound("No Matcher found for {}:{}".format(
-                filter_name, filter_value))
-
-    @staticmethod
-    def _match(disk: dict, matcher) -> bool:
-        """ Compares disk properties
-
-        Calls the compare method of the passed `matcher`
-        with the passed `disk`.
-
-        :param dict disk: A description of a disk
-        :param Matcher matcher: The matcher subclass
-        :return: True of False
-        :rtype: bool
-        """
-        return matcher.compare(disk)
+                    "Filtering for {} is not supported".format(applied_filter))
 
     @staticmethod
     # pylint: disable=inconsistent-return-statements

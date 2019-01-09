@@ -406,13 +406,14 @@ class TestDriveGroup(object):
 
     @pytest.fixture(scope='class')
     def test_fix(self, empty=None):
-        def make_sample_data(empty=empty):
+        def make_sample_data(empty=empty, limit=0):
             raw_sample = {
                 'target': 'data*',
                 'data_devices': {
                     'size': '10G:29G',
                     'model': 'foo',
-                    'vendor': '1x'
+                    'vendor': '1x',
+                    'limit': limit
                 },
                 'wal_devices': {
                     'model': 'fast'
@@ -480,7 +481,8 @@ class TestDriveGroup(object):
         assert test_fix('target').data_device_attrs == {
             'model': 'foo',
             'size': '10G:29G',
-            'vendor': '1x'
+            'vendor': '1x',
+            'limit': 0
         }
 
     def test_data_devices_prop_empty(self, test_fix):
@@ -782,6 +784,15 @@ class TestDriveGroup(object):
         test_fix = test_fix()
         ret = test_fix('*')._filter_devices(dict(rotational='1'))
         assert len(ret) == 2
+
+    def test_filter_devices_limit(self, test_fix, inventory):
+        """
+        Configure to only take disks with a rotational flag of 1
+        This should take two disks, but limit=1 is in place
+        """
+        test_fix = test_fix(limit=1)
+        ret = test_fix('*')._filter_devices(dict(rotational='1'))
+        assert len(ret) == 1
 
     @patch('srv.modules.runners.disks.DriveGroup._check_filter')
     def test_check_filter_support(self, check_filter_mock, test_fix):
