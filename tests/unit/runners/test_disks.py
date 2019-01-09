@@ -60,7 +60,7 @@ class TestMatcher(object):
         """
         virtual_mock.return_value = True
         disk_map = dict(path='/dev/vdb', foo='bar')
-        ret = disks.Matcher('bar', 'foo')._get_disk_key(disk_map)
+        ret = disks.Matcher('foo', 'bar')._get_disk_key(disk_map)
         assert ret == disk_map.get('foo')
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
@@ -73,7 +73,7 @@ class TestMatcher(object):
         virtual_mock.return_value = True
         disk_map = dict(path='/dev/vdb')
         ret = disks.Matcher('bar', 'foo')._get_disk_key(disk_map)
-        assert ret is False
+        assert ret is ''
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
     def test_get_disk_key_3(self, virtual_mock):
@@ -84,7 +84,7 @@ class TestMatcher(object):
         """
         virtual_mock.return_value = False
         disk_map = dict(path='/dev/vdb', foo='bar')
-        ret = disks.Matcher('bar', 'foo')._get_disk_key(disk_map)
+        ret = disks.Matcher('foo', 'bar')._get_disk_key(disk_map)
         assert ret is disk_map.get('foo')
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
@@ -134,7 +134,7 @@ class TestSubstringMatcher(object):
     def test_compare(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
         disk_dict = dict(path='/dev/vdb', model='samsung')
-        matcher = disks.SubstringMatcher('samsung', 'model')
+        matcher = disks.SubstringMatcher('model', 'samsung')
         ret = matcher.compare(disk_dict)
         assert ret is True
 
@@ -143,7 +143,7 @@ class TestSubstringMatcher(object):
     def test_compare_false(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
         disk_dict = dict(path='/dev/vdb', model='nothing_matching')
-        matcher = disks.SubstringMatcher('samsung', 'model')
+        matcher = disks.SubstringMatcher('model', 'samsung')
         ret = matcher.compare(disk_dict)
         assert ret is False
 
@@ -154,7 +154,7 @@ class TestEqualityMatcher(object):
     def test_compare(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
         disk_dict = dict(path='/dev/vdb', rotates='1')
-        matcher = disks.SubstringMatcher('1', 'rotates')
+        matcher = disks.SubstringMatcher('rotates', '1')
         ret = matcher.compare(disk_dict)
         assert ret is True
 
@@ -163,7 +163,7 @@ class TestEqualityMatcher(object):
     def test_compare_false(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
         disk_dict = dict(path='/dev/vdb', rotates='1')
-        matcher = disks.SubstringMatcher('0', 'rotates')
+        matcher = disks.SubstringMatcher('rotates', '0')
         ret = matcher.compare(disk_dict)
         assert ret is False
 
@@ -174,7 +174,7 @@ class TestSizeMatcher(object):
     def test_parse_filter_exact(self, mock_client, virtual_mock):
         """ Testing exact notation with 20G """
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('20G', 'size')
+        matcher = disks.SizeMatcher('size', '20G')
         assert isinstance(matcher.exact, tuple)
         assert matcher.exact[0] == '20'
         assert matcher.exact[1] == 'GB'
@@ -184,7 +184,7 @@ class TestSizeMatcher(object):
     def test_parse_filter_exact_GB_G(self, mock_client, virtual_mock):
         """ Testing exact notation with 20G """
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('20GB', 'size')
+        matcher = disks.SizeMatcher('size', '20GB')
         assert isinstance(matcher.exact, tuple)
         assert matcher.exact[0] == '20'
         assert matcher.exact[1] == 'GB'
@@ -194,7 +194,7 @@ class TestSizeMatcher(object):
     def test_parse_filter_high_low(self, mock_client, virtual_mock):
         """ Testing high-low notation with 20G:50G """
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('20G:50G', 'size')
+        matcher = disks.SizeMatcher('size', '20G:50G')
         assert isinstance(matcher.exact, tuple)
         assert matcher.low[0] == '20'
         assert matcher.high[0] == '50'
@@ -206,7 +206,7 @@ class TestSizeMatcher(object):
     def test_parse_filter_max_high(self, mock_client, virtual_mock):
         """ Testing high notation with :50G """
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher(':50G', 'size')
+        matcher = disks.SizeMatcher('size', ':50G')
         assert isinstance(matcher.exact, tuple)
         assert matcher.high[0] == '50'
         assert matcher.high[1] == 'GB'
@@ -216,7 +216,7 @@ class TestSizeMatcher(object):
     def test_parse_filter_min_low(self, mock_client, virtual_mock):
         """ Testing low notation with 20G: """
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('50G:', 'size')
+        matcher = disks.SizeMatcher('size', '50G:')
         assert isinstance(matcher.exact, tuple)
         assert matcher.low[0] == '50'
         assert matcher.low[1] == 'GB'
@@ -226,7 +226,7 @@ class TestSizeMatcher(object):
     def test_to_byte_GB(self, mock_client, virtual_mock):
         """ Pretty nonesense test.."""
         virtual_mock.return_value = False
-        ret = disks.SizeMatcher('10G', 'size').to_byte(('10', 'GB'))
+        ret = disks.SizeMatcher('size', '10G').to_byte(('10', 'GB'))
         assert ret == 10 * 1e+9
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
@@ -234,7 +234,7 @@ class TestSizeMatcher(object):
     def test_to_byte_MB(self, mock_client, virtual_mock):
         """ Pretty nonesense test.."""
         virtual_mock.return_value = False
-        ret = disks.SizeMatcher('10M', 'size').to_byte(('10', 'MB'))
+        ret = disks.SizeMatcher('size', '10M').to_byte(('10', 'MB'))
         assert ret == 10 * 1e+6
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
@@ -242,7 +242,7 @@ class TestSizeMatcher(object):
     def test_to_byte_TB(self, mock_client, virtual_mock):
         """ Pretty nonesense test.."""
         virtual_mock.return_value = False
-        ret = disks.SizeMatcher('10T', 'size').to_byte(('10', 'TB'))
+        ret = disks.SizeMatcher('size', '10T').to_byte(('10', 'TB'))
         assert ret == 10 * 1e+12
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
@@ -251,14 +251,14 @@ class TestSizeMatcher(object):
         """ Expect to raise """
         virtual_mock.return_value = False
         with pytest.raises(disks.UnitNotSupported):
-            disks.SizeMatcher('10P', 'size').to_byte(('10', 'PB'))
+            disks.SizeMatcher('size', '10P').to_byte(('10', 'PB'))
         assert 'Unit \'P\' is not supported'
 
     @patch("srv.modules.runners.disks.Matcher._virtual", autospec=True)
     @patch("salt.client.LocalClient", autospec=True)
     def test_compare_exact(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('20GB', 'size')
+        matcher = disks.SizeMatcher('size', '20GB')
         disk_dict = dict(path='/dev/vdb', size='20.00 GB')
         ret = matcher.compare(disk_dict)
         assert ret is True
@@ -276,7 +276,7 @@ class TestSizeMatcher(object):
     def test_compare_high_low(self, mock_client, virtual_mock, test_input,
                               expected):
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('20GB:100GB', 'size')
+        matcher = disks.SizeMatcher('size', '20GB:100GB')
         disk_dict = dict(path='/dev/vdb', size=test_input)
         ret = matcher.compare(disk_dict)
         assert ret is expected
@@ -294,7 +294,7 @@ class TestSizeMatcher(object):
     def test_compare_high(self, mock_client, virtual_mock, test_input,
                           expected):
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher(':50GB', 'size')
+        matcher = disks.SizeMatcher('size', ':50GB')
         disk_dict = dict(path='/dev/vdb', size=test_input)
         ret = matcher.compare(disk_dict)
         assert ret is expected
@@ -312,7 +312,7 @@ class TestSizeMatcher(object):
     def test_compare_low(self, mock_client, virtual_mock, test_input,
                          expected):
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('50GB:', 'size')
+        matcher = disks.SizeMatcher('size', '50GB:')
         disk_dict = dict(path='/dev/vdb', size=test_input)
         ret = matcher.compare(disk_dict)
         assert ret is expected
@@ -321,7 +321,7 @@ class TestSizeMatcher(object):
     @patch("salt.client.LocalClient", autospec=True)
     def test_compare_raise(self, mock_client, virtual_mock):
         virtual_mock.return_value = False
-        matcher = disks.SizeMatcher('None', 'size')
+        matcher = disks.SizeMatcher('size', 'None')
         disk_dict = dict(path='/dev/vdb', size='20.00 GB')
         with pytest.raises(Exception, message="Couldn't parse size"):
             matcher.compare(disk_dict)
@@ -334,8 +334,7 @@ class TestSizeMatcher(object):
     @patch("salt.client.LocalClient", autospec=True)
     def test_get_k_v(self, mock_client, virtual_mock, test_input, expected):
         virtual_mock.return_value = False
-        assert disks.SizeMatcher('10G',
-                                 'size')._get_k_v(test_input) == expected
+        assert disks.SizeMatcher('size', '10G')._get_k_v(test_input) == expected
 
     @pytest.mark.parametrize("test_input,expected", [
         ("10G", ('GB')),
@@ -350,8 +349,7 @@ class TestSizeMatcher(object):
     def test_parse_suffix(self, mock_client, virtual_mock, test_input,
                           expected):
         virtual_mock.return_value = False
-        assert disks.SizeMatcher('10G',
-                                 'size')._parse_suffix(test_input) == expected
+        assert disks.SizeMatcher('size', '10G')._parse_suffix(test_input) == expected
 
     @pytest.mark.parametrize("test_input,expected", [
         ("G", 'GB'),
@@ -812,39 +810,6 @@ class TestDriveGroup(object):
                 message="Filter unknown is not supported"):
             test_fix('*')._check_filter(dict(unknown='foo'))
 
-    def test_assign_matcher_size(self, test_fix):
-        test_fix = test_fix()
-        ret = test_fix('*')._assign_matchers('size', '10G')
-        assert isinstance(ret, disks.SizeMatcher)
-
-    def test_assign_matcher_model(self, test_fix):
-        test_fix = test_fix()
-        ret = test_fix('*')._assign_matchers('model', 'foo')
-        assert isinstance(ret, disks.SubstringMatcher)
-
-    def test_assign_matcher_vendor(self, test_fix):
-        test_fix = test_fix()
-        ret = test_fix('*')._assign_matchers('vendor', 'bar')
-        assert isinstance(ret, disks.SubstringMatcher)
-
-    def test_assign_matcher_rotational(self, test_fix):
-        test_fix = test_fix()
-        ret = test_fix('*')._assign_matchers('rotational', '0')
-        assert isinstance(ret, disks.EqualityMatcher)
-
-    def test_assign_matcher_raises(self, test_fix):
-        test_fix = test_fix()
-        with pytest.raises(
-                disks.NoMatcherFound, message="No Matcher found for foo:bar"):
-            test_fix('*')._assign_matchers('foo', 'bar')
-
-    @patch('srv.modules.runners.disks.SubstringMatcher')
-    def test_match(self, substring_matcher_mock, test_fix, inventory):
-        test_fix = test_fix()
-        test_fix('*')._match(
-            test_fix('*').inventory[0], disks.SubstringMatcher)
-        substring_matcher_mock.assert_called_once
-
 
 class TestDriveGroups(object):
     @patch("salt.client.LocalClient", autospec=True)
@@ -854,3 +819,30 @@ class TestDriveGroups(object):
         local.cmd.return_value = {'foo': {'internals'}, 'bar': {'internals'}}
         disks.DriveGroups().generate()
         drive_group_mock.assert_called_with('bar')
+
+
+class TestFilter(object):
+
+    def test_is_matchable(self):
+        ret = disks.Filter()
+        assert ret.is_matchable is False
+
+    def test_assign_matchers_size(self):
+        ret = disks.Filter(name='size', value='10G')
+        assert isinstance(ret.matcher, disks.SizeMatcher)
+        assert ret.is_matchable is True
+
+    def test_assign_matchers_model(self):
+        ret = disks.Filter(name='model', value='abc123')
+        assert isinstance(ret.matcher, disks.SubstringMatcher)
+        assert ret.is_matchable is True
+
+    def test_assign_matchers_vendor(self):
+        ret = disks.Filter(name='vendor', value='samsung')
+        assert isinstance(ret.matcher, disks.SubstringMatcher)
+        assert ret.is_matchable is True
+
+    def test_assign_matchers_rotational(self):
+        ret = disks.Filter(name='rotational', value='0')
+        assert isinstance(ret.matcher, disks.EqualityMatcher)
+        assert ret.is_matchable is True

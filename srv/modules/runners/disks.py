@@ -15,13 +15,6 @@ import salt.client
 log = logging.getLogger(__name__)
 
 
-class NoMatcherFound(Exception):
-    """
-    """
-
-    pass
-
-
 class FilterNotSupported(Exception):
     """ A critical error when the user specified filter is unsupported
     """
@@ -47,28 +40,38 @@ class Base(object):
 
 
 class Filter(object):
+    """ Filter class to assign properties to bare filters.
+
+    This is a utility class that tries to simplify working
+    with information comming from a text file (drive_group.yaml)/salt
+
+    """
+
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', None)
+        self.name: str = str(kwargs.get('name', None))
         self.matcher = kwargs.get('matcher', None)
-        self.value = kwargs.get('value', None)
+        self.value: str = str(kwargs.get('value', None))
         self._assign_matchers()
         log.debug("Initializing filter for {} with value {}".format(
             self.name, self.value))
 
     @property
-    def is_matchable(self):
+    def is_matchable(self) -> bool:
+        """ A property to indicate if a Filter has a matcher
+
+        Some filter i.e. 'limit' or 'osd_per_device' are valid filter
+        attributes but cannot be applied to a disk set. In this case
+        we return 'None'
+        :return: If a matcher is present True/Flase
+        :rtype: bool
+        """
         return self.matcher is not None
 
-    def _assign_matchers(self):
+    def _assign_matchers(self) -> None:
         """ Assign a matcher based on filter_name
 
         This method assigns an individual Matcher based
-        on `filter_name` and returns it.
-
-        :param str filter_name: The filter (size, model, vendor..)
-        :param str filter_value: The filter_value (0,1, 'Samsung', '10G')
-        :return: Any of the assigned matcher
-        :rtype: *Matcher
+        on `self.name` and returns it.
         """
         if self.name == "size":
             self.matcher = SizeMatcher(self.name, self.value)
@@ -78,12 +81,15 @@ class Filter(object):
             self.matcher = SubstringMatcher(self.name, self.value)
         elif self.name == "rotational":
             self.matcher = EqualityMatcher(self.name, self.value)
+        else:
+            log.debug("No suitable matcher for {} could be found.")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """ Visual representation of the filter
+        """
         return 'Filter<{}>'.format(self.name)
 
 
-# pylint: disable=too-few-public-methods
 class Inventory(Base):
     """ The Inventory class
 
@@ -97,17 +103,17 @@ class Inventory(Base):
         log.debug("Retrieving Inventory for target {}".format(self.target))
 
     @property
-    def raw(self):
-        """
-        TODO docstring
+    def raw(self) -> dict:
+        """ Raw data from a ceph-volume inventory call via salt
         """
         return self.local_client.cmd(self.target, "cmd.run",
                                      ["ceph-volume inventory --format json"])
 
     @property
-    def disks(self):
-        """
-        TODO harden this & docstring
+    def disks(self) -> list:
+        """ All disks found on the 'target'
+
+        Loads the json data from ceph-volume inventory
         """
         return json.loads((list(self.raw.values()))[0])
 
@@ -168,9 +174,9 @@ class Matcher(Base):
         :return: A disk value
         :rtype: str
         """
-        disk_value: str = disk.get(self.key)
+        disk_value: str = disk.get(self.key, None)
         if not disk_value and self.fallback_key:
-            disk_value = disk.get(self.fallback_key)
+            disk_value = disk.get(self.fallback_key, None)
         if disk_value:
             return disk_value
         if self.virtual:
@@ -178,7 +184,7 @@ class Matcher(Base):
                 "Virtual-env detected. Not raising Exception on missing keys."
                 " {} and {} appear not to be present".format(
                     self.key, self.fallback_key))
-            return False
+            return ''
         else:
             raise Exception("No value found for {} or {}".format(
                 self.key, self.fallback_key))
@@ -188,8 +194,6 @@ class Matcher(Base):
         This will get overwritten by the individual classes
 
         :param dict disk: A disk representation
-        {'model': 'model_a',
-         'size': '12345'}
         """
         pass
 
@@ -243,7 +247,10 @@ class SizeMatcher(Matcher):
 
     # pylint: disable=too-many-instance-attributes
     def __init__(self, key: str, value: str) -> None:
-        # TODO: key will be ignored
+        # The 'key' value is overwritten here because
+        # the user_defined attribute does not neccessarily
+        # correspond to the desired attribute
+        # requested from the inventory output
         Matcher.__init__(self, key, value)
         self.key: str = "human_readable_size"
         self.fallback_key: str = "size"
@@ -262,7 +269,7 @@ class SizeMatcher(Matcher):
         return self._low, self._low_suffix
 
     @low.setter
-    def low(self, low: Tuple):
+    def low(self, low: Tuple) -> None:
         """ Setter for 'low' matchers
         """
         self._low, self._low_suffix = low
@@ -274,7 +281,7 @@ class SizeMatcher(Matcher):
         return self._high, self._high_suffix
 
     @high.setter
-    def high(self, high: Tuple):
+    def high(self, high: Tuple) -> None:
         """ Setter for 'high' matchers
         """
         self._high, self._high_suffix = high
@@ -286,13 +293,13 @@ class SizeMatcher(Matcher):
         return self._exact, self._exact_suffix
 
     @exact.setter
-    def exact(self, exact: Tuple):
+    def exact(self, exact: Tuple) -> None:
         """ Setter for 'exact' matchers
         """
         self._exact, self._exact_suffix = exact
 
     @property
-    def supported_suffixes(self):
+    def supported_suffixes(self) -> list:
         """ Only power of 10 notation is supported
         """
         return ["MB", "GB", "TB", "M", "G", "T"]
@@ -396,10 +403,13 @@ class SizeMatcher(Matcher):
         suffix = tpl[1]
         if suffix == "MB":
             return value * 1e+6
-        if suffix == "GB":
+        elif suffix == "GB":
             return value * 1e+9
-        if suffix == "TB":
+        elif suffix == "TB":
             return value * 1e+12
+        # TODO: checkers force me to return something, although
+        # it's not quite good to return something here.. ignore?
+        return 0.00
 
     # pylint: disable=inconsistent-return-statements
     def compare(self, disk: dict) -> bool:
@@ -408,7 +418,7 @@ class SizeMatcher(Matcher):
         1) Extracts information from the to-be-inspected disk.
         2) Depending on the mode, apply checks and return
 
-        #todo This doesn't seem very solid and _may_
+        # TODO This doesn't seem very solid and _may_
         be re-factored
 
 
@@ -468,8 +478,7 @@ class DriveGroup(Base):
 
     @property
     def raw(self) -> dict:
-        """
-        TODO docstring
+        """ Raw data from a pillar.get -> drive_group call
         """
         return list(
             self.local_client.cmd(self.target, "pillar.get",
@@ -477,22 +486,27 @@ class DriveGroup(Base):
 
     @property
     def db_slots(self) -> dict:
-        """
-        TODO docstring
+        """ Property of db_slots
+
+        db_slots are essentially ratio indicators
+        :return: The value of db_slots
+        :rtype: dict
         """
         return self.raw.get("db_slots", False)
 
     @property
     def wal_slots(self) -> dict:
-        """
-        TODO docstring
+        """ Property of wal_slots
+
+        wal_slots are essentially ratio indicators
         """
         return self.raw.get("wal_slots", False)
 
     @property
     def encryption(self) -> dict:
-        """
-        TODO docstring
+        """ Property of encryption
+
+        True/Flase if encryption is enabled
         """
         return self.raw.get("encryption", False)
 
@@ -519,8 +533,9 @@ class DriveGroup(Base):
 
     @property
     def limit(self) -> int:
-        """
-        TODO docstring
+        """ Limits the amount of devices assigned
+
+        Limit 0 -> unlimited
         """
         return self.data_device_attrs.get("limit", 0)
 
@@ -566,7 +581,7 @@ class DriveGroup(Base):
         :rtype: bool
         """
         if self.limit > 0 and len_devices >= self.limit:
-            log.info("Refuse to add {} due to limit policy <{}>".format(
+            log.info("Refuse to add {} due to limit policy of {}>".format(
                 disk_path, self.limit))
             return True
         return False
@@ -599,8 +614,7 @@ class DriveGroup(Base):
                 if not filter.is_matchable:
                     continue
 
-                if not filter.matcher.compare(
-                        self._reduce_inventory(disk)):
+                if not filter.matcher.compare(self._reduce_inventory(disk)):
                     continue
 
                 if not self._has_mandatory_idents(disk):
@@ -616,19 +630,19 @@ class DriveGroup(Base):
 
     def _has_mandatory_idents(self, disk: dict) -> bool:
         if disk.get("path", None):
-            log.debug("Found matching disk: {}".format(
-                disk.get("path")))
+            log.debug("Found matching disk: {}".format(disk.get("path")))
             return True
         else:
             raise Exception(
-                "Disk {} doesn't have a 'path' identifier".format(
-                    disk))
+                "Disk {} doesn't have a 'path' identifier".format(disk))
 
     @property
     def _supported_filters(self) -> list:
         """ List of supported filters
         """
-        return ["size", "vendor", "model", "rotational", "limit"]
+        return [
+            "size", "vendor", "model", "rotational", "limit", "osds_per_device"
+        ]
 
     def _check_filter_support(self) -> None:
         """ Iterates over attrs to check support
